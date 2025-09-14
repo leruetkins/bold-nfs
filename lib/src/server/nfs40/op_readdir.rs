@@ -1,3 +1,5 @@
+use std::hash::Hasher;
+
 use async_trait::async_trait;
 use tracing::{debug, error};
 
@@ -26,62 +28,33 @@ impl NfsOperation for Readdir4args {
                 };
             }
         };
+        request.file_manager().touch_file(dir_fh.id).await;
         let dir = dir_fh.file.read_dir().unwrap();
+        let dir_count = dir.count();
 
-        let mut fnames = Vec::new();
-        let mut filehandles = Vec::new();
-        let dircount: usize = self.dircount as usize;
-        let maxcount: usize = self.maxcount as usize;
-        let mut maxcount_actual: usize = 128;
-        let mut dircount_actual = 0;
-        // get a list of filenames and filehandles
+        let mut entries = Vec::new();
+        let dir = dir_fh.file.read_dir().unwrap();
         for (i, entry) in dir.enumerate() {
-            let name = entry.filename();
-            fnames.push(name.clone());
-            // if the cookie value is progressed, we add only subsequent filehandles
-            // https://datatracker.ietf.org/doc/html/rfc7530#section-16.24.4
-            // To enable some client environments, the cookie values of 0, 1, and 2 are to be considered reserved.
-            if (i + 2) >= self.cookie as usize {
-                // this is a poor man's estimation of the XRD outputs bytes, must be improved
-                // we need to know the definitive size of the output of the XDR message here, but how?
-                dircount_actual = dircount_actual + 8 + name.len() + 5;
-                maxcount_actual += 200;
-                if dircount == 0 || (dircount > dircount_actual && maxcount > maxcount_actual) {
-                    let filehandle = request
-                        .file_manager()
-                        .get_filehandle_for_path(entry.as_str().to_string())
-                        .await;
-                    match filehandle {
-                        Err(_e) => {
-                            error!("None filehandle");
-                            return NfsOpResponse {
-                                request,
-                                result: None,
-                                status: NfsStat4::Nfs4errFhexpired,
-                            };
-                        }
-                        Ok(filehandle) => {
-                            // https://datatracker.ietf.org/doc/html/rfc7530#section-16.24.4
-                            // To enable some client environments, the cookie values of 0, 1, and 2 are to be considered reserved.
-                            filehandles.push((i + 3, filehandle));
-                        }
-                    }
-                }
+            let filehandle = request
+                .file_manager()
+                .get_filehandle_for_path(entry.as_str().to_string())
+                .await;
+            if let Ok(filehandle) = filehandle {
+                request.file_manager().touch_file(filehandle.id).await;
+                let updated_fh = request
+                    .file_manager()
+                    .get_filehandle_for_id(filehandle.id)
+                    .await
+                    .unwrap();
+                entries.push((i + 3, updated_fh));
             }
         }
 
-        // get a seed of this directory, concat all files names
-        let seed: String = fnames
-            .iter()
-            .flat_map(|s| s.as_str().chars().collect::<Vec<_>>())
-            .collect();
-        // take only every nth char to create a cookie verifier
-        let mut cookieverf = seed
-            .as_bytes()
-            .iter()
-            .step_by(seed.len() / 8 + 1)
-            .copied()
-            .collect::<Vec<_>>();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for (_, fh) in entries.iter() {
+            hasher.write(fh.file.filename().as_bytes());
+        }
+        let mut cookieverf = hasher.finish().to_be_bytes().to_vec();
         if self.cookie != 0 && cookieverf != self.cookieverf {
             error!("Nfs4errNotSame");
             return NfsOpResponse {
@@ -105,7 +78,7 @@ impl NfsOperation for Readdir4args {
 
         let mut tnextentry = None;
         let mut added_entries = 0;
-        for (cookie, fh) in filehandles.into_iter().rev() {
+        for (cookie, fh) in entries.into_iter().rev() {
             let resp = request
                 .file_manager()
                 .filehandle_attrs(&self.attr_request, &fh);
@@ -138,7 +111,7 @@ impl NfsOperation for Readdir4args {
         }
         let eof = {
             if tnextentry.is_some()
-                && (tnextentry.clone().unwrap().cookie + added_entries) >= fnames.len() as u64
+                && (tnextentry.clone().unwrap().cookie as usize + added_entries) >= dir_count
             {
                 true
             } else {

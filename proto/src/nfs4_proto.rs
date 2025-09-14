@@ -155,6 +155,16 @@ pub struct Nfstime4 {
     pub nseconds: u32,
 }
 
+impl Nfstime4 {
+    pub fn to_system_time(&self) -> Option<std::time::SystemTime> {
+        if self.seconds < 0 {
+            return None;
+        }
+        let d = std::time::Duration::new(self.seconds as u64, self.nseconds);
+        std::time::SystemTime::UNIX_EPOCH.checked_add(d)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum TimeHow4 {
     SetToServerTime4 = 0,

@@ -212,10 +212,10 @@ impl FileManager {
         // create a new filehandle with refreshed attributes
         let fh = Filehandle::new(
             filehandle.file.clone(),
-            filehandle.id.clone(),
+            filehandle.id,
             self.fsid,
             self.fsid,
-            filehandle.version,
+            filehandle.version + 1,
         );
         self.fhdb.remove_by_id(&filehandle.id);
         debug!("Touching filehandle: {:?}", fh);
@@ -289,16 +289,13 @@ impl FileManager {
     }
 
     fn get_filehandle_by_id(&mut self, id: &NfsFh4) -> Option<Filehandle> {
-        let fh = self.fhdb.get_by_id(id);
+        let fh = self.fhdb.get_by_id(id).cloned();
         if let Some(fh) = fh {
-            if fh.file.exists().unwrap() {
-                debug!("Found filehandle: {:?}", fh);
-                return Some(fh.clone());
-            } else {
-                // this filehandle is stale, remove it
-                debug!("Removing stale filehandle: {:?}", fh);
+            if !fh.file.exists().unwrap() {
                 self.fhdb.remove_by_id(id);
+                return None;
             }
+            return Some(fh);
         }
         None
     }
@@ -310,15 +307,19 @@ impl FileManager {
 
     pub fn get_filehandle(&mut self, file: &VfsPath) -> Filehandle {
         let id = self.get_filehandle_id(file);
-        match self.get_filehandle_by_id(&id) {
-            Some(fh) => fh.clone(),
-            None => {
-                let fh = Filehandle::new(file.clone(), id, self.fsid, 0, 0);
-                debug!("Storing new filehandle: {:?}", fh);
-                self.fhdb.insert(fh.clone());
-                fh
+        let fh = self.get_filehandle_by_id(&id);
+        if let Some(fh) = fh {
+            if fh.file.metadata().unwrap().modified.unwrap()
+                > fh.attr_time_modify.to_system_time().unwrap()
+            {
+                self.touch_filehandle(fh.clone());
+                return self.get_filehandle_by_id(&id).unwrap();
             }
+            return fh;
         }
+        let new_fh = Filehandle::new(file.clone(), id, self.fsid, 0, 0);
+        self.fhdb.insert(new_fh.clone());
+        new_fh
     }
 
     pub fn root_fh(&mut self) -> Filehandle {

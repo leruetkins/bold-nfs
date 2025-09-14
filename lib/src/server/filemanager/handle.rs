@@ -9,7 +9,7 @@ use bold_proto::nfs4_proto::{
 
 use super::{
     caching::run_file_write_cache, caching::WriteCache, filehandle::Filehandle, run_file_manager,
-    FileManager,
+    FileManager, locking::LockingState,
 };
 use crate::server::filemanager::NfsFh4;
 
@@ -21,7 +21,7 @@ pub enum FileManagerMessage {
     RemoveFile(RemoveFileRequest),
     TouchFile(TouchFileRequest),
     UpdateFilehandle(Filehandle),
-    LockFile(),
+    LockFile(LockFileRequest),
     CloseFile(),
     GetWriteCacheHandle(WriteCacheHandleRequest),
     DropWriteCacheHandle(DropCacheHandleRequest),
@@ -77,9 +77,18 @@ pub struct FileManagerError {
     pub nfs_error: NfsStat4,
 }
 
+pub struct LockFileRequest {
+    pub filehandle: Filehandle,
+    pub client_id: u64,
+    pub owner: Vec<u8>,
+    pub share_access: u32,
+    pub share_deny: u32,
+    pub respond_to: oneshot::Sender<LockingState>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FileManagerHandle {
-    sender: mpsc::Sender<FileManagerMessage>,
+    pub sender: mpsc::Sender<FileManagerMessage>,
     lease_time: u32,
     hard_link_support: bool,
     symlink_support: bool,

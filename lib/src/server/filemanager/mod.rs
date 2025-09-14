@@ -9,7 +9,7 @@ mod filehandle;
 pub use filehandle::Filehandle;
 pub use handle::FileManagerHandle;
 mod caching;
-mod handle;
+pub mod handle;
 mod locking;
 pub mod real_fs;
 pub mod fs_util;
@@ -137,7 +137,19 @@ impl FileManager {
                     req.respond_to.send(None).unwrap();
                 }
             }
-            FileManagerMessage::LockFile() => todo!(),
+            FileManagerMessage::LockFile(req) => {
+                let stateid = self.get_new_lockingstate_id();
+                let lock = LockingState::new_shared_reservation(
+                    req.filehandle.id.clone(),
+                    stateid,
+                    req.client_id,
+                    req.owner,
+                    req.share_access,
+                    req.share_deny,
+                );
+                self.lockdb.insert(lock.clone());
+                req.respond_to.send(lock).unwrap();
+            }
             FileManagerMessage::CloseFile() => todo!(),
             FileManagerMessage::RemoveFile(req) => {
                 let filehandle = self.get_filehandle_by_path(&req.path.as_str().to_string());

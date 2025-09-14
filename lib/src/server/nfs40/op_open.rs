@@ -14,7 +14,11 @@ use bold_proto::nfs4_proto::{
     Stateid4,
 };
 
-async fn open_for_reading<'a>(file: &String, mut request: NfsRequest<'a>) -> NfsOpResponse<'a> {
+async fn open_for_reading<'a>(
+    args: &Open4args,
+    file: &String,
+    mut request: NfsRequest<'a>,
+) -> NfsOpResponse<'a> {
     let filehandle = request.current_filehandle();
     let path = &filehandle.unwrap().path;
 
@@ -43,28 +47,46 @@ async fn open_for_reading<'a>(file: &String, mut request: NfsRequest<'a>) -> Nfs
         }
     };
 
-    request.set_filehandle(filehandle);
+    request.set_filehandle(filehandle.clone());
 
-    NfsOpResponse {
-        request,
-        result: Some(NfsResOp4::Opopen(Open4res::Resok4(Open4resok {
-            stateid: Stateid4 {
-                seqid: 0,
-                other: [0; 12],
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    request
+        .file_manager()
+        .sender
+        .send(crate::server::filemanager::handle::FileManagerMessage::LockFile(
+            crate::server::filemanager::handle::LockFileRequest {
+                respond_to: tx,
+                filehandle: filehandle.clone(),
+                client_id: args.owner.clientid,
+                owner: args.owner.owner.clone(),
+                share_access: args.share_access,
+                share_deny: args.share_deny,
             },
-            cinfo: ChangeInfo4 {
-                atomic: false,
-                before: 0,
-                after: 0,
-            },
-            // OPEN4_RESULT_CONFIRM indicates that the client MUST execute an
-            // OPEN_CONFIRM operation before using the open file.
-            rflags: OPEN4_RESULT_CONFIRM,
-            attrset: Attrlist4::<FileAttr>::new(None),
-            delegation: OpenDelegation4::None,
-        }))),
-        status: NfsStat4::Nfs4Ok,
-    }
+        ))
+        .await
+        .unwrap();
+    let lock = rx.await.unwrap();
+
+  NfsOpResponse {
+      request,
+      result: Some(NfsResOp4::Opopen(Open4res::Resok4(Open4resok {
+          stateid: Stateid4 {
+              seqid: lock.seqid,
+              other: lock.stateid,
+          },
+          cinfo: ChangeInfo4 {
+              atomic: false,
+              before: 0,
+              after: 0,
+          },
+          // OPEN4_RESULT_CONFIRM indicates that the client MUST execute an
+          // OPEN_CONFIRM operation before using the open file.
+          rflags: OPEN4_RESULT_CONFIRM,
+          attrset: Attrlist4::<FileAttr>::new(None),
+          delegation: OpenDelegation4::None,
+      }))),
+      status: NfsStat4::Nfs4Ok,
+  }
 }
 
 async fn open_for_writing<'a>(
@@ -150,13 +172,6 @@ async fn open_for_writing<'a>(
     request.set_filehandle(filehandle.clone());
     
     // Check if there are any locks on the filehandle
-    if filehandle.locks.is_empty() {
-        return NfsOpResponse {
-            request,
-            result: None,
-            status: NfsStat4::Nfs4errBadStateid,
-        };
-    }
     
     // we expect this filehandle to have one lock (for the shared reservation)
     let lock = &filehandle.locks[0];
@@ -247,7 +262,7 @@ impl NfsOperation for Open4args {
         match &self.openhow {
             OpenFlag4::Open4Nocreate => {
                 // Open a file for reading
-                open_for_reading(file, request).await
+                open_for_reading(self, file, request).await
             }
             OpenFlag4::How(how) => {
                 // Open a file for writing

@@ -148,6 +148,16 @@ async fn open_for_writing<'a>(
     };
 
     request.set_filehandle(filehandle.clone());
+    
+    // Check if there are any locks on the filehandle
+    if filehandle.locks.is_empty() {
+        return NfsOpResponse {
+            request,
+            result: None,
+            status: NfsStat4::Nfs4errBadStateid,
+        };
+    }
+    
     // we expect this filehandle to have one lock (for the shared reservation)
     let lock = &filehandle.locks[0];
 

@@ -36,6 +36,6 @@ fn main() {
 
     let root = create_memory_fs(root_dir);
 
-    let server = ServerBuilder::new(root).bind("127.0.0.1:11112").build();
+    let server = ServerBuilder::new(root).bind("0.0.0.0:2049").build();
     server.start();
 }

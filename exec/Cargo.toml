@@ -1,7 +1,15 @@
 [package]
-name = "bold-mem"
+name = "bold-exec"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "bold-mem"
+path = "src/main.rs"
+
+[[bin]]
+name = "bold-real-fs"
+path = "src/main_real_fs.rs"
 
 [dependencies]
 bold = { path = "../lib" }
@@ -10,6 +18,7 @@ serde = { version = "1.0.210", features = ["derive"] }
 serde_yaml = "0.9.34"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+tokio = { version = "1.40.0", features = ["full"] }
 
 [profile.release]
 debug = true

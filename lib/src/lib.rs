@@ -1,6 +1,12 @@
 #![doc = include_str!("../README.md")]
 
 pub mod server;
+pub mod filemanager {
+    pub use crate::server::filemanager::real_fs::*;
+    pub use crate::server::filemanager::fs_util::*;
+    pub use crate::server::filemanager::vfs::*;
+    pub use crate::server::filemanager::nfs::*;
+}
 
 use std::collections::HashMap;
 

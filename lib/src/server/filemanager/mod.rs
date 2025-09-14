@@ -11,13 +11,17 @@ pub use handle::FileManagerHandle;
 mod caching;
 mod handle;
 mod locking;
+pub mod real_fs;
+pub mod fs_util;
+pub mod vfs;
+pub mod nfs;
 
 use filehandle::FilehandleDb;
 use handle::{FileManagerMessage, WriteCacheHandle};
 use locking::{LockingState, LockingStateDb};
 use tokio::sync::mpsc;
 use tracing::{debug, error};
-use vfs::VfsPath;
+use crate::VfsPath;
 
 #[derive(Debug)]
 pub struct FileManager {
@@ -297,7 +301,7 @@ impl FileManager {
         match self.get_filehandle_by_id(&id) {
             Some(fh) => fh.clone(),
             None => {
-                let fh = Filehandle::new(file.clone(), id, self.fsid, self.fsid, 0);
+                let fh = Filehandle::new(file.clone(), id, self.fsid, 0, 0);
                 debug!("Storing new filehandle: {:?}", fh);
                 self.fhdb.insert(fh.clone());
                 fh

@@ -1,7 +1,11 @@
 [workspace]
 resolver = "2"
-members = [ 
+members = [
     "exec",
-    "lib", 
+    "lib",
     "proto",
+    "examples",
 ]
+
+[profile.dev]
+split-debuginfo = "unpacked"

@@ -26,16 +26,78 @@ impl NfsOperation for Read4args {
             }
         };
 
+        // Проверим, существует ли файл
+        if !filehandle.file.exists().unwrap() {
+            return NfsOpResponse {
+                request,
+                result: Some(NfsResOp4::Opread(Read4res::Resfail)),
+                status: NfsStat4::Nfs4errNoent, // Файл не существует
+            };
+        }
+        
+        // Проверим, является ли объект файлом
+        if filehandle.file.is_dir().unwrap() {
+            return NfsOpResponse {
+                request,
+                result: Some(NfsResOp4::Opread(Read4res::Resfail)),
+                status: NfsStat4::Nfs4errIsdir, // Это каталог, а не файл
+            };
+        }
+
         let mut buffer: Vec<u8> = vec![0; self.count as usize];
-        let mut rfile = filehandle.file.open_file().unwrap();
+        let mut rfile = match filehandle.file.open_file() {
+            Ok(file) => file,
+            Err(_) => {
+                return NfsOpResponse {
+                    request,
+                    result: Some(NfsResOp4::Opread(Read4res::Resfail)),
+                    status: NfsStat4::Nfs4errAccess, // Нет доступа к файлу
+                };
+            }
+        };
+        
+        // Проверим, что смещение не превышает размер файла
+        let file_len = filehandle.file.metadata().unwrap().len;
+        if self.offset > file_len {
+            return NfsOpResponse {
+                request,
+                result: Some(NfsResOp4::Opread(Read4res::Resok4(Read4resok {
+                    eof: true,
+                    data: vec![],
+                }))),
+                status: NfsStat4::Nfs4Ok,
+            };
+        }
+        
         rfile.seek(SeekFrom::Start(self.offset)).unwrap();
-        let _ = rfile.read_exact(&mut buffer);
+        let read_result = rfile.read_exact(&mut buffer);
+        
+        // Если не удалось прочитать данные, возможно, мы достигли конца файла
+        let (data, eof) = match read_result {
+            Ok(_) => {
+                (buffer, true)
+            },
+            Err(_) => {
+                // Попробуем прочитать доступные данные
+                let available = (file_len - self.offset) as usize;
+                if available > 0 {
+                    buffer.resize(available, 0);
+                    rfile.seek(SeekFrom::Start(self.offset)).unwrap();
+                    match rfile.read_exact(&mut buffer).await {
+                        Ok(_) => (buffer, true),
+                        Err(_) => (vec![], true)
+                    }
+                } else {
+                    (vec![], true)
+                }
+            }
+        };
 
         NfsOpResponse {
             request,
             result: Some(NfsResOp4::Opread(Read4res::Resok4(Read4resok {
-                eof: true,
-                data: buffer,
+                eof,
+                data,
             }))),
             status: NfsStat4::Nfs4Ok,
         }

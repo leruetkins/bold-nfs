@@ -1,0 +1,12 @@
+[package]
+name = "bold-examples"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "real_fs_example"
+path = "real_fs_example.rs"
+
+[dependencies]
+bold = { path = "../lib" }
+tempfile = "3.0"

@@ -55,7 +55,7 @@ pub struct CreateFileRequest {
 
 pub struct RemoveFileRequest {
     pub path: VfsPath,
-    pub respond_to: oneshot::Sender<()>,
+    pub respond_to: oneshot::Sender<std::io::Result<()>>,
 }
 
 pub struct TouchFileRequest {
@@ -246,7 +246,14 @@ impl FileManagerHandle {
             .await
             .unwrap();
         match rx.await {
-            Ok(_) => Ok(()),
+            Ok(result) => {
+                match result {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(FileManagerError {
+                        nfs_error: NfsStat4::Nfs4errIo,
+                    })
+                }
+            },
             Err(_) => Err(FileManagerError {
                 nfs_error: NfsStat4::Nfs4errServerfault,
             }),

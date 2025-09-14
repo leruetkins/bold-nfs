@@ -30,7 +30,10 @@ impl NfsOperation for Read4args {
         if !filehandle.file.exists().unwrap() {
             return NfsOpResponse {
                 request,
-                result: Some(NfsResOp4::Opread(Read4res::Resfail)),
+                result: Some(NfsResOp4::Opread(Read4res::Resok4(Read4resok {
+                    eof: true,
+                    data: vec![],
+                }))),
                 status: NfsStat4::Nfs4errNoent, // Файл не существует
             };
         }
@@ -39,7 +42,10 @@ impl NfsOperation for Read4args {
         if filehandle.file.is_dir().unwrap() {
             return NfsOpResponse {
                 request,
-                result: Some(NfsResOp4::Opread(Read4res::Resfail)),
+                result: Some(NfsResOp4::Opread(Read4res::Resok4(Read4resok {
+                    eof: true,
+                    data: vec![],
+                }))),
                 status: NfsStat4::Nfs4errIsdir, // Это каталог, а не файл
             };
         }
@@ -50,7 +56,10 @@ impl NfsOperation for Read4args {
             Err(_) => {
                 return NfsOpResponse {
                     request,
-                    result: Some(NfsResOp4::Opread(Read4res::Resfail)),
+                    result: Some(NfsResOp4::Opread(Read4res::Resok4(Read4resok {
+                        eof: true,
+                        data: vec![],
+                    }))),
                     status: NfsStat4::Nfs4errAccess, // Нет доступа к файлу
                 };
             }
@@ -83,7 +92,7 @@ impl NfsOperation for Read4args {
                 if available > 0 {
                     buffer.resize(available, 0);
                     rfile.seek(SeekFrom::Start(self.offset)).unwrap();
-                    match rfile.read_exact(&mut buffer).await {
+                    match rfile.read_exact(&mut buffer) {
                         Ok(_) => (buffer, true),
                         Err(_) => (vec![], true)
                     }

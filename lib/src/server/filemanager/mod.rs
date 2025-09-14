@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 
 use bold_proto::nfs4_proto::{
     Attrlist4, FileAttr, FileAttrValue, NfsFh4, NfsLease4, NfsStat4, ACL4_SUPPORT_ALLOW_ACL,
@@ -142,24 +143,33 @@ impl FileManager {
             FileManagerMessage::RemoveFile(req) => {
                 let filehandle = self.get_filehandle_by_path(&req.path.as_str().to_string());
                 let mut parent_path = req.path.parent().as_str().to_string();
-                match filehandle {
+                let remove_result = match filehandle {
                     Some(filehandle) => {
                         // TODO check locks
-                        if req.path.is_dir().unwrap() {
-                            let _ = req.path.read_dir();
+                        let op_result = if req.path.is_dir().unwrap() {
+                            // For directories, we should check if it's empty before removing
+                            req.path.read_dir().and_then(|_| req.path.remove_dir())
                         } else {
-                            let _ = req.path.remove_file();
+                            // For files, simply remove them
+                            req.path.remove_file()
+                        };
+                        
+                        // If the file operation was successful, also remove it from our database
+                        if op_result.is_ok() {
+                            self.fhdb.remove_by_id(&filehandle.id);
                         }
-                        self.fhdb.remove_by_id(&filehandle.id);
+                        op_result
                     }
                     None => {
                         if req.path.is_dir().unwrap() {
-                            let _ = req.path.read_dir();
+                            // For directories, we should check if it's empty before removing
+                            req.path.read_dir().and_then(|_| req.path.remove_dir())
                         } else {
-                            let _ = req.path.remove_file();
+                            // For files, simply remove them
+                            req.path.remove_file()
                         }
                     }
-                }
+                };
 
                 if parent_path.is_empty() {
                     // this is root
@@ -169,7 +179,9 @@ impl FileManager {
                 let parent_filehandle = self.get_filehandle_by_path(&parent_path).unwrap();
                 // TODO: check locks
                 self.touch_filehandle(parent_filehandle);
-                req.respond_to.send(()).unwrap()
+                
+                // Respond with the result of the remove operation
+                req.respond_to.send(remove_result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))).unwrap()
             }
             FileManagerMessage::TouchFile(req) => {
                 let filehandle = self.get_filehandle_by_id(&req.id);

@@ -48,9 +48,20 @@ impl NfsOperation for Remove4args {
                                 after: 0,
                             },
                         })),
-                        status: NfsStat4::Nfs4errStale,
+                        status: NfsStat4::Nfs4Ok,
                     },
-                    Err(_) => todo!(),
+                    Err(_) => NfsOpResponse {
+                        request,
+                        result: Some(NfsResOp4::Opremove(Remove4res {
+                            status: NfsStat4::Nfs4errIo,
+                            cinfo: ChangeInfo4 {
+                                atomic: false,
+                                before: 0,
+                                after: 0,
+                            },
+                        })),
+                        status: NfsStat4::Nfs4errIo,
+                    },
                 }
             }
         }

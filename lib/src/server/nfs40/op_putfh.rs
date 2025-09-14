@@ -7,10 +7,7 @@ use bold_proto::nfs4_proto::{NfsResOp4, NfsStat4, PutFh4args, PutFh4res};
 #[async_trait]
 impl NfsOperation for PutFh4args {
     async fn execute<'a>(&self, mut request: NfsRequest<'a>) -> NfsOpResponse<'a> {
-        debug!(
-            "Operation 22: PUTFH - Set Current Filehandle {:?}, with request {:?}",
-            self, request
-        );
+        debug!("Operation 22: PUTFH - Set Current Filehandle");
 
         match request.get_filehandle_from_cache(self.object.clone()) {
             Some(fh) => {

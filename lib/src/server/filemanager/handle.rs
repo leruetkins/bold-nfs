@@ -1,5 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::debug;
+use tracing::{debug, error};
 use vfs::VfsPath;
 
 use bold_proto::nfs4_proto::{
@@ -246,21 +246,21 @@ impl FileManagerHandle {
     }
 
     pub async fn remove_file(&self, path: VfsPath) -> Result<(), FileManagerError> {
-        let (tx, rx) = oneshot::channel();
-        self.sender
-            .send(FileManagerMessage::RemoveFile(RemoveFileRequest {
-                path,
-                respond_to: tx,
-            }))
-            .await
-            .unwrap();
-        match rx.await {
-            Ok(_) => Ok(()),
-            Err(_) => Err(FileManagerError {
-                nfs_error: NfsStat4::Nfs4errServerfault,
-            }),
+            let (tx, rx) = oneshot::channel();
+            self.sender
+                .send(FileManagerMessage::RemoveFile(RemoveFileRequest {
+                    path,
+                    respond_to: tx,
+                }))
+                .await
+                .unwrap();
+            match rx.await {
+                Ok(_) => Ok(()),
+                Err(_) => Err(FileManagerError {
+                    nfs_error: NfsStat4::Nfs4errServerfault,
+                }),
+            }
         }
-    }
 
     pub async fn touch_file(&self, id: NfsFh4) {
         self.sender

@@ -10,10 +10,7 @@ use bold_proto::nfs4_proto::{Fattr4, Getattr4args, Getattr4resok, NfsResOp4};
 #[async_trait]
 impl NfsOperation for Getattr4args {
     async fn execute<'a>(&self, request: NfsRequest<'a>) -> NfsOpResponse<'a> {
-        debug!(
-            "Operation 9: GETATTR - Get Attributes {:?}, with request {:?}",
-            self, request
-        );
+        debug!("Operation 9: GETATTR - Get Attributes");
         let filehandle = request.current_filehandle();
         match filehandle {
             None => {

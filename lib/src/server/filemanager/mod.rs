@@ -152,37 +152,80 @@ impl FileManager {
             }
             FileManagerMessage::CloseFile() => todo!(),
             FileManagerMessage::RemoveFile(req) => {
-                let filehandle = self.get_filehandle_by_path(&req.path.as_str().to_string());
-                let mut parent_path = req.path.parent().as_str().to_string();
-                match filehandle {
-                    Some(filehandle) => {
-                        // TODO check locks
-                        if req.path.is_dir().unwrap() {
-                            let _ = req.path.read_dir();
-                        } else {
-                            let _ = req.path.remove_file();
-                        }
-                        self.fhdb.remove_by_id(&filehandle.id);
-                    }
-                    None => {
-                        if req.path.is_dir().unwrap() {
-                            let _ = req.path.read_dir();
-                        } else {
-                            let _ = req.path.remove_file();
-                        }
-                    }
-                }
-
-                if parent_path.is_empty() {
-                    // this is root
-                    parent_path = "/".to_string();
-                }
-
-                let parent_filehandle = self.get_filehandle_by_path(&parent_path).unwrap();
-                // TODO: check locks
-                self.touch_filehandle(parent_filehandle);
-                req.respond_to.send(()).unwrap()
-            }
+                                                    debug!("Processing RemoveFile request for path: {:?}", req.path);
+                                                    let filehandle = self.get_filehandle_by_path(&req.path.as_str().to_string());
+                                                    debug!("Filehandle for path {:?}: {:?}", req.path, filehandle);
+                                                    let mut parent_path = req.path.parent().as_str().to_string();
+                                                    match filehandle {
+                                                        Some(filehandle) => {
+                                                            debug!("Filehandle found for path: {:?}", req.path);
+                                                            // TODO check locks
+                                                            match req.path.is_dir() {
+                                                                Ok(true) => {
+                                                                    debug!("Removing directory: {:?}", req.path);
+                                                                    match req.path.remove_dir() {
+                                                                        Ok(_) => debug!("Successfully removed directory"),
+                                                                        Err(e) => error!("Error removing directory: {:?}", e),
+                                                                    }
+                                                                }
+                                                                Ok(false) => {
+                                                                    debug!("Removing file: {:?}", req.path);
+                                                                    match req.path.remove_file() {
+                                                                        Ok(_) => debug!("Successfully removed file"),
+                                                                        Err(e) => error!("Error removing file: {:?}", e),
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    error!("Error determining if path is directory: {:?}", e);
+                                                                    // Обработка ошибки определения типа объекта
+                                                                    req.respond_to.send(()).unwrap();
+                                                                    return;
+                                                                }
+                                                            }
+                                                            self.fhdb.remove_by_id(&filehandle.id);
+                                                        }
+                                                        None => {
+                                                            debug!("Filehandle not found for path: {:?}", req.path);
+                                                            match req.path.is_dir() {
+                                                                Ok(true) => {
+                                                                    debug!("Removing directory (no filehandle): {:?}", req.path);
+                                                                    match req.path.remove_dir() {
+                                                                        Ok(_) => debug!("Successfully removed directory (no filehandle)"),
+                                                                        Err(e) => error!("Error removing directory (no filehandle): {:?}", e),
+                                                                    }
+                                                                }
+                                                                Ok(false) => {
+                                                                    debug!("Removing file (no filehandle): {:?}", req.path);
+                                                                    match req.path.remove_file() {
+                                                                        Ok(_) => debug!("Successfully removed file (no filehandle)"),
+                                                                        Err(e) => error!("Error removing file (no filehandle): {:?}", e),
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    error!("Error determining if path is directory (no filehandle): {:?}", e);
+                                                                    // Обработка ошибки определения типа объекта
+                                                                    req.respond_to.send(()).unwrap();
+                                                                    return;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                    
+                                                    if parent_path.is_empty() {
+                                                        // this is root
+                                                        parent_path = "/".to_string();
+                                                    }
+                                                    
+                                                    debug!("Parent path: {:?}", parent_path);
+                                                    if let Some(parent_filehandle) = self.get_filehandle_by_path(&parent_path) {
+                                                        debug!("Parent filehandle found, touching it");
+                                                        // TODO: check locks
+                                                        self.touch_filehandle(parent_filehandle);
+                                                    } else {
+                                                        debug!("Parent filehandle not found");
+                                                    }
+                                                    req.respond_to.send(()).unwrap()
+                                                }
             FileManagerMessage::TouchFile(req) => {
                 let filehandle = self.get_filehandle_by_id(&req.id);
                 match filehandle {
@@ -245,13 +288,14 @@ impl FileManager {
         // this filehandle is already added to the db
         let fh = self.get_filehandle(newfile);
         let mut path = newfile.parent().as_str().to_string();
-        if path.is_empty() {
-            // this is root
-            path = "/".to_string();
-        }
-        // TODO: check locks
-        let parent_filehandle = self.get_filehandle_by_path(&path).unwrap();
-        self.touch_filehandle(parent_filehandle);
+                                    if path.is_empty() {
+                                        // this is root
+                                        path = "/".to_string();
+                                    }
+                                    // TODO: check locks
+                                    if let Some(parent_filehandle) = self.get_filehandle_by_path(&path) {
+                                        self.touch_filehandle(parent_filehandle);
+                                    }
 
         Some(fh)
     }
@@ -306,20 +350,23 @@ impl FileManager {
     }
 
     pub fn get_filehandle(&mut self, file: &VfsPath) -> Filehandle {
-        let id = self.get_filehandle_id(file);
-        let fh = self.get_filehandle_by_id(&id);
-        if let Some(fh) = fh {
-            if fh.file.metadata().unwrap().modified.unwrap()
-                > fh.attr_time_modify.to_system_time().unwrap()
-            {
-                self.touch_filehandle(fh.clone());
-                return self.get_filehandle_by_id(&id).unwrap();
-            }
-            return fh;
-        }
-        let new_fh = Filehandle::new(file.clone(), id, self.fsid, 0, 0);
-        self.fhdb.insert(new_fh.clone());
-        new_fh
+                                let id = self.get_filehandle_id(file);
+                                let fh = self.get_filehandle_by_id(&id);
+                                if let Some(fh) = fh {
+                                    // Проверяем, есть ли метаданные файла и время последнего изменения
+                                    if let (Ok(metadata), Some(attr_time_modify)) = (fh.file.metadata(), fh.attr_time_modify.to_system_time()) {
+                                        if let Some(modified) = metadata.modified {
+                                            if modified > attr_time_modify {
+                                                self.touch_filehandle(fh.clone());
+                                                return self.get_filehandle_by_id(&id).unwrap();
+                                            }
+                                        }
+                                    }
+                                    return fh;
+                                }
+                                let new_fh = Filehandle::new(file.clone(), id, self.fsid, 0, 0);
+                                self.fhdb.insert(new_fh.clone());
+                                new_fh
     }
 
     pub fn root_fh(&mut self) -> Filehandle {

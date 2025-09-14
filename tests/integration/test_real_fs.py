@@ -58,6 +58,17 @@ def test_real_fs():
                 content = f.read()
                 assert content == "This is a new file created through NFS"
                 
+            # Test file removal through NFS
+            os.remove(os.path.join(mount_point, "new_file.txt"))
+            assert not os.path.exists(os.path.join(temp_dir, "new_file.txt"))
+            
+            # Test directory removal through NFS
+            # First, remove the nested file
+            os.remove(os.path.join(mount_point, "test_dir", "nested_file.txt"))
+            # Then remove the directory
+            os.rmdir(os.path.join(mount_point, "test_dir"))
+            assert not os.path.exists(os.path.join(temp_dir, "test_dir"))
+                
         finally:
             # Unmount the NFS share
             subprocess.run(["sudo", "umount", "-f", mount_point])

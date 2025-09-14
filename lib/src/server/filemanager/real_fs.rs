@@ -591,14 +591,14 @@ impl NFSFileSystem for RealFS {
         path.push(os_from_bytes(filename));
         if let Ok(meta) = path.symlink_metadata() {
             if meta.is_dir() {
-                tokio::fs::remove_dir(&path)
-                    .await
-                    .map_err(|_| nfsstat3::NFS3ERR_IO)?;
-            } else {
-                tokio::fs::remove_file(&path)
-                    .await
-                    .map_err(|_| nfsstat3::NFS3ERR_IO)?;
-            }
+                            tokio::fs::remove_dir_all(&path)
+                                .await
+                                .map_err(|_| nfsstat3::NFS3ERR_IO)?;
+                        } else {
+                            tokio::fs::remove_file(&path)
+                                .await
+                                .map_err(|_| nfsstat3::NFS3ERR_IO)?;
+                        }
 
             let filesym = fsmap
                 .intern

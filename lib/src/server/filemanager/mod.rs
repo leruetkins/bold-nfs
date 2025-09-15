@@ -142,7 +142,7 @@ impl FileManager {
                     Some(filehandle) => {
                         // TODO check locks
                         if req.path.is_dir().unwrap() {
-                            let _ = req.path.read_dir();
+                            let _ = req.path.remove_dir();
                         } else {
                             let _ = req.path.remove_file();
                         }
@@ -150,7 +150,7 @@ impl FileManager {
                     }
                     None => {
                         if req.path.is_dir().unwrap() {
-                            let _ = req.path.read_dir();
+                            let _ = req.path.remove_dir();
                         } else {
                             let _ = req.path.remove_file();
                         }

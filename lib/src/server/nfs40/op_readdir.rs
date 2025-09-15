@@ -26,13 +26,13 @@ impl NfsOperation for Readdir4args {
                 };
             }
         };
+        request.file_manager().touch_file(dir_fh.id.clone()).await;
         let dir = dir_fh.file.read_dir().unwrap();
 
         let mut fnames = Vec::new();
         let mut filehandles = Vec::new();
         let dircount: usize = self.dircount as usize;
         let maxcount: usize = self.maxcount as usize;
-        let mut maxcount_actual: usize = 128;
         let mut dircount_actual = 0;
         // get a list of filenames and filehandles
         for (i, entry) in dir.enumerate() {
@@ -45,8 +45,7 @@ impl NfsOperation for Readdir4args {
                 // this is a poor man's estimation of the XRD outputs bytes, must be improved
                 // we need to know the definitive size of the output of the XDR message here, but how?
                 dircount_actual = dircount_actual + 8 + name.len() + 5;
-                maxcount_actual += 200;
-                if dircount == 0 || (dircount > dircount_actual && maxcount > maxcount_actual) {
+                if (dircount == 0 || dircount > filehandles.len()) && (maxcount == 0 || maxcount > dircount_actual) {
                     let filehandle = request
                         .file_manager()
                         .get_filehandle_for_path(entry.as_str().to_string())

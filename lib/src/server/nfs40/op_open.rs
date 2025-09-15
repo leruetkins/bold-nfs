@@ -34,7 +34,7 @@ async fn open_for_reading<'a>(file: &String, mut request: NfsRequest<'a>) -> Nfs
     {
         Ok(filehandle) => filehandle,
         Err(e) => {
-            error!("Err {:?}", e);
+            error!("File open error: {:?}", e);
             return NfsOpResponse {
                 request,
                 result: None,
@@ -104,7 +104,7 @@ async fn open_for_writing<'a>(
             {
                 Ok(filehandle) => filehandle,
                 Err(e) => {
-                    error!("Err {:?}", e);
+                    error!("File creation error: {:?}", e);
                     return NfsOpResponse {
                         request,
                         result: None,
@@ -128,7 +128,7 @@ async fn open_for_writing<'a>(
             {
                 Ok(filehandle) => filehandle,
                 Err(e) => {
-                    error!("Err {:?}", e);
+                    error!("File creation error: {:?}", e);
                     return NfsOpResponse {
                         request,
                         result: None,

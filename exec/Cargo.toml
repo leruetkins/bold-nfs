@@ -1,5 +1,5 @@
 [package]
-name = "bold-mem"
+name = "bold-exec"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,15 @@ serde = { version = "1.0.210", features = ["derive"] }
 serde_yaml = "0.9.34"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+vfs = "0.12.0"
+
+[[bin]]
+name = "bold-mem"
+path = "src/main.rs"
+
+[[bin]]
+name = "bold-nfs"
+path = "src/main_real_fs.rs"
 
 [profile.release]
 debug = true

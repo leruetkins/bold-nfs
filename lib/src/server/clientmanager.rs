@@ -200,50 +200,60 @@ impl ClientManager {
     ) -> Result<ClientEntry, ClientManagerError> {
         let db = Arc::get_mut(&mut self.db).unwrap();
 
-        let entries = db.get_by_clientid(&client_id);
-        let mut old_confirmed: Option<ClientEntry> = None;
-        let mut new_confirmed: Option<ClientEntry> = None;
-        if entries.is_empty() {
-            // nothing to confirm
-            return Err(ClientManagerError {
-                nfs_error: NfsStat4::Nfs4errStaleClientid,
-            });
-        }
+        // Find the unconfirmed client entry that matches the confirm value
+        let unconfirmed_entry = db.get_by_setclientid_confirm(&setclientid_confirm).cloned();
 
-        for entry in entries {
-            if entry.principal != principal {
-                // For any confirmed record with the same id string x, if the recorded principal does
-                // not match that of the SETCLIENTID call, then the server returns an
-                // NFS4ERR_CLID_INUSE error.
+        let client_to_confirm = match unconfirmed_entry {
+            Some(entry) => {
+                // Check if clientid matches
+                if entry.clientid != client_id {
+                    return Err(ClientManagerError {
+                        nfs_error: NfsStat4::Nfs4errStaleClientid,
+                    });
+                }
+                // Check if principal matches
+                if entry.principal != principal {
+                    return Err(ClientManagerError {
+                        nfs_error: NfsStat4::Nfs4errClidInuse,
+                    });
+                }
+                entry
+            }
+            None => {
+                // No unconfirmed record found. Let's check if there is an already confirmed one.
+                let entries = db.get_by_clientid(&client_id);
+                if let Some(confirmed_entry) = entries.iter().find(|e| e.confirmed) {
+                    // If the confirm value matches, we are good.
+                    if confirmed_entry.setclientid_confirm == setclientid_confirm {
+                        return Ok((*confirmed_entry).clone());
+                    }
+                }
+                // Otherwise, it's a stale clientid
                 return Err(ClientManagerError {
-                    nfs_error: NfsStat4::Nfs4errClidInuse,
+                    nfs_error: NfsStat4::Nfs4errStaleClientid,
                 });
             }
-            if entry.confirmed && entry.setclientid_confirm != setclientid_confirm {
-                old_confirmed = Some(entry.clone());
-            }
-            if entry.setclientid_confirm == setclientid_confirm {
-                let mut update_entry = entry.clone();
-                update_entry.confirmed = true;
-                new_confirmed = Some(update_entry);
-            }
+        };
+
+        // Remove any other unconfirmed entries for this client ID
+        let to_remove: Vec<_> = db
+            .get_by_clientid(&client_id)
+            .iter()
+            .filter(|e| !e.confirmed && e.setclientid_confirm != setclientid_confirm)
+            .map(|e| e.setclientid_confirm)
+            .collect();
+
+        for confirm in to_remove {
+            db.remove_by_setclientid_confirm(&confirm);
         }
 
-        if let Some(old_confirmed) = old_confirmed {
-            db.remove_by_setclientid_confirm(&(old_confirmed.setclientid_confirm));
-        }
+        // Mark the entry as confirmed
+        db.modify_by_setclientid_confirm(&setclientid_confirm, |c| {
+            c.confirmed = true;
+        });
 
-        match new_confirmed {
-            Some(new_confirmed) => {
-                db.modify_by_setclientid_confirm(&new_confirmed.setclientid_confirm, |c| {
-                    c.confirmed = true;
-                });
-                Ok(new_confirmed)
-            }
-            None => Err(ClientManagerError {
-                nfs_error: NfsStat4::Nfs4errStaleClientid,
-            }),
-        }
+        // Return the now confirmed entry
+        Ok(client_to_confirm)
     }
 
     fn renew_leases(&mut self, client_id: u64) -> Result<(), ClientManagerError> {

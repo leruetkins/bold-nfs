@@ -17,14 +17,16 @@ Bold's design goals are:
 Anti goals include complicated compile-time computations, such as macro or type trickery.
 
 ## Demo and testing
-There is a binary `bold-mem` (in /exec), which reads in a
-YAML file and serves this as in-memory file system.
+There are two binaries in `/exec`: `bold-mem` and `bold-nfs`.
+
+### `bold-mem` - In-memory file system
+This binary reads a YAML file and serves it as an in-memory file system.
 
 On Linux:
 
 ```yaml
-# bold-mem/memoryfs.yaml
-name: 
+# exec/memoryfs.yaml
+name:
 contents:
   - !Dir
     name: home
@@ -43,16 +45,31 @@ contents:
 ```
 
 You can compile and run it from the repo:
-1) `cargo run -p bold-mem -- --debug exec/memoryfs.yam`
+1) `cargo run -p bold-exec --bin bold-mem -- --debug exec/memoryfs.yaml`
 (optionally, you can enable the `--debug` flag)
 
 2) Open another terminal
 3) `mkdir /tmp/demo`
 4) `sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo`
-5) `ls /tmp/demo/`, `cat /tmp/demo/home/user/file1`  
+5) `ls /tmp/demo/`, `cat /tmp/demo/home/user/file1`
 (have a look around in your mounted file system)
 6) Copy files from your local computer into the mounted file system and retrive it back
 7) Don't forget to unmount `sudo umount /tmp/demo`, before stopping `bold-mem`
+
+### `bold-nfs` - Real file system
+This binary shares a directory from your real file system.
+
+You can compile and run it from the repo:
+1) `cargo run -p bold-exec --bin bold-nfs -- /path/to/your/directory`
+(replace `/path/to/your/directory` with the actual path you want to share)
+
+2) Open another terminal
+3) `mkdir /tmp/demo`
+4) `sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo`
+5) `ls /tmp/demo/`
+(have a look around in your mounted file system)
+6) Copy files from your local computer into the mounted file system and retrive it back
+7) Don't forget to unmount `sudo umount /tmp/demo`, before stopping `bold-nfs`
 
 ## State of implementation
 

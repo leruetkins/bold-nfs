@@ -3,7 +3,7 @@ use tracing::debug;
 
 use crate::server::{operation::NfsOperation, request::NfsRequest, response::NfsOpResponse};
 
-use bold_proto::nfs4_proto::{Close4args, Close4res, NfsResOp4, NfsStat4, Stateid4};
+use bold_proto::nfs4_proto::{Close4args, Close4res, NfsResOp4, NfsStat4};
 
 #[async_trait]
 impl NfsOperation for Close4args {
@@ -13,16 +13,25 @@ impl NfsOperation for Close4args {
             self, request
         );
 
+        let fmanager = request.file_manager();
+        let result = fmanager.close_file(self.open_stateid.other).await;
+
         let current_filehandle = request.current_filehandle().unwrap();
         request.drop_filehandle_from_cache(current_filehandle.id);
 
-        NfsOpResponse {
-            request,
-            result: Some(NfsResOp4::Opclose(Close4res::OpenStateid(Stateid4 {
-                seqid: self.seqid,
-                other: self.open_stateid.other,
-            }))),
-            status: NfsStat4::Nfs4Ok,
+        match result {
+            Ok(_) => NfsOpResponse {
+                request,
+                result: Some(NfsResOp4::Opclose(Close4res::OpenStateid(
+                    self.open_stateid.clone(),
+                ))),
+                status: NfsStat4::Nfs4Ok,
+            },
+            Err(e) => NfsOpResponse {
+                request,
+                result: None,
+                status: e.nfs_error,
+            },
         }
     }
 }

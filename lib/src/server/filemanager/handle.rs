@@ -21,10 +21,33 @@ pub enum FileManagerMessage {
     RemoveFile(RemoveFileRequest),
     TouchFile(TouchFileRequest),
     UpdateFilehandle(Filehandle),
-    LockFile(),
-    CloseFile(),
+    LockFile(LockFileRequest),
+    ConfirmLock(ConfirmLockRequest),
+    CloseFile(CloseFileRequest),
     GetWriteCacheHandle(WriteCacheHandleRequest),
     DropWriteCacheHandle(DropCacheHandleRequest),
+}
+
+#[derive(Debug)]
+pub struct LockFileRequest {
+    pub filehandle: Filehandle,
+    pub client_id: u64,
+    pub owner: Vec<u8>,
+    pub share_access: u32,
+    pub share_deny: u32,
+    pub respond_to: oneshot::Sender<Result<Filehandle, FileManagerError>>,
+}
+
+#[derive(Debug)]
+pub struct ConfirmLockRequest {
+    pub stateid: [u8; 12],
+    pub respond_to: oneshot::Sender<Result<(), FileManagerError>>,
+}
+
+#[derive(Debug)]
+pub struct CloseFileRequest {
+    pub stateid: [u8; 12],
+    pub respond_to: oneshot::Sender<Result<(), FileManagerError>>,
 }
 
 pub struct GetRootFilehandleRequest {
@@ -265,6 +288,53 @@ impl FileManagerHandle {
             .send(FileManagerMessage::UpdateFilehandle(filehandle))
             .await
             .unwrap();
+    }
+
+    pub async fn lock_file(
+        &self,
+        filehandle: Filehandle,
+        client_id: u64,
+        owner: Vec<u8>,
+        share_access: u32,
+        share_deny: u32,
+    ) -> Result<Filehandle, FileManagerError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(FileManagerMessage::LockFile(LockFileRequest {
+                filehandle,
+                client_id,
+                owner,
+                share_access,
+                share_deny,
+                respond_to: tx,
+            }))
+            .await
+            .unwrap();
+        rx.await.unwrap()
+    }
+
+    pub async fn confirm_lock(&self, stateid: [u8; 12]) -> Result<(), FileManagerError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(FileManagerMessage::ConfirmLock(ConfirmLockRequest {
+                stateid,
+                respond_to: tx,
+            }))
+            .await
+            .unwrap();
+        rx.await.unwrap()
+    }
+
+    pub async fn close_file(&self, stateid: [u8; 12]) -> Result<(), FileManagerError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(FileManagerMessage::CloseFile(CloseFileRequest {
+                stateid,
+                respond_to: tx,
+            }))
+            .await
+            .unwrap();
+        rx.await.unwrap()
     }
 
     pub async fn get_write_cache_handle(

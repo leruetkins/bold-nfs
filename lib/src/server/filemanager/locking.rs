@@ -18,6 +18,7 @@ pub struct LockingState {
     // that represents a set of locks (often a single lock) for the same
     // file, of the same type, and sharing the same ownership
     // characteristics.
+    #[multi_index(hashed_unique)]
     pub stateid: [u8; 12],
     pub seqid: u32,
     // clientid:
@@ -53,6 +54,7 @@ pub struct LockingState {
     // reservation.
     // OPEN4_SHARE_DENY_NONE | OPEN4_SHARE_DENY_READ | OPEN4_SHARE_DENY_WRITE | OPEN4_SHARE_DENY_BOTH
     pub share_deny: Option<u32>,
+    pub confirmed: bool,
 }
 
 impl LockingState {
@@ -75,6 +77,7 @@ impl LockingState {
             length: None,
             share_access: Some(share_access),
             share_deny: Some(share_deny),
+            confirmed: false,
         }
     }
 }

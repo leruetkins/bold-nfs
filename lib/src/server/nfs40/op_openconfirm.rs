@@ -4,7 +4,7 @@ use tracing::debug;
 use crate::server::{operation::NfsOperation, request::NfsRequest, response::NfsOpResponse};
 
 use bold_proto::nfs4_proto::{
-    NfsResOp4, NfsStat4, OpenConfirm4args, OpenConfirm4res, OpenConfirm4resok, Stateid4,
+    NfsResOp4, NfsStat4, OpenConfirm4args, OpenConfirm4res, OpenConfirm4resok,
 };
 
 #[async_trait]
@@ -14,29 +14,25 @@ impl NfsOperation for OpenConfirm4args {
             "Operation 20: OPEN_CONFIRM - Confirm Open {:?}, with request {:?}",
             self, request
         );
-        // we expect filehandle to have one lock (for the shared reservation)
-        let filehandle = request.current_filehandle().unwrap();
-        if filehandle.locks.is_empty() {
-            // If there are no locks, return an error
-            return NfsOpResponse {
+
+        let fmanager = request.file_manager();
+        let result = fmanager.confirm_lock(self.open_stateid.other).await;
+
+        match result {
+            Ok(_) => NfsOpResponse {
+                request,
+                result: Some(NfsResOp4::OpopenConfirm(OpenConfirm4res::Resok4(
+                    OpenConfirm4resok {
+                        open_stateid: self.open_stateid.clone(),
+                    },
+                ))),
+                status: NfsStat4::Nfs4Ok,
+            },
+            Err(e) => NfsOpResponse {
                 request,
                 result: None,
-                status: NfsStat4::Nfs4errBadStateid,
-            };
-        }
-        let lock = filehandle.locks[0].clone();
-        // TODO check if the stateid is correct
-        NfsOpResponse {
-            request,
-            result: Some(NfsResOp4::OpopenConfirm(OpenConfirm4res::Resok4(
-                OpenConfirm4resok {
-                    open_stateid: Stateid4 {
-                        seqid: lock.seqid,
-                        other: lock.stateid,
-                    },
-                },
-            ))),
-            status: NfsStat4::Nfs4Ok,
+                status: e.nfs_error,
+            },
         }
     }
 }

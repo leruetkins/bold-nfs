@@ -13,7 +13,7 @@ mod handle;
 mod locking;
 
 use filehandle::FilehandleDb;
-use handle::{FileManagerMessage, WriteCacheHandle};
+use handle::{FileManagerError, FileManagerMessage, WriteCacheHandle};
 use locking::{LockingState, LockingStateDb};
 use tokio::sync::mpsc;
 use tracing::{debug, error};
@@ -133,8 +133,51 @@ impl FileManager {
                     req.respond_to.send(None).unwrap();
                 }
             }
-            FileManagerMessage::LockFile() => todo!(),
-            FileManagerMessage::CloseFile() => todo!(),
+            FileManagerMessage::LockFile(req) => {
+                let mut fh = req.filehandle;
+                let stateid = self.get_new_lockingstate_id();
+                let lock = LockingState::new_shared_reservation(
+                    fh.id.clone(),
+                    stateid,
+                    req.client_id,
+                    req.owner,
+                    req.share_access,
+                    req.share_deny,
+                );
+                // add this new locking state to the db
+                self.lockdb.insert(lock.clone());
+                fh.locks = vec![lock];
+                req.respond_to.send(Ok(fh)).unwrap();
+            }
+            FileManagerMessage::ConfirmLock(req) => {
+                // TODO check seqid
+                let lock = self.lockdb.get_by_stateid(&req.stateid);
+                if let Some(_) = lock {
+                    self.lockdb.modify_by_stateid(&req.stateid, |l| {
+                        l.confirmed = true;
+                    });
+                    req.respond_to.send(Ok(())).unwrap();
+                } else {
+                    req.respond_to
+                        .send(Err(FileManagerError {
+                            nfs_error: NfsStat4::Nfs4errBadStateid,
+                        }))
+                        .unwrap();
+                }
+            }
+            FileManagerMessage::CloseFile(req) => {
+                let lock = self.lockdb.get_by_stateid(&req.stateid);
+                if let Some(_) = lock {
+                    self.lockdb.remove_by_stateid(&req.stateid);
+                    req.respond_to.send(Ok(())).unwrap();
+                } else {
+                    req.respond_to
+                        .send(Err(FileManagerError {
+                            nfs_error: NfsStat4::Nfs4errBadStateid,
+                        }))
+                        .unwrap();
+                }
+            }
             FileManagerMessage::RemoveFile(req) => {
                 let filehandle = self.get_filehandle_by_path(&req.path.as_str().to_string());
                 let mut parent_path = req.path.parent().as_str().to_string();

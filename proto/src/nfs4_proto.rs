@@ -1112,8 +1112,8 @@ pub struct OpenAttr4res {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct OpenConfirm4args {
     /* CURRENT_FH: opened file */
-    open_stateid: Stateid4,
-    seqid: Seqid4,
+    pub open_stateid: Stateid4,
+    pub seqid: Seqid4,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

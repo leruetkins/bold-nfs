@@ -189,7 +189,7 @@
       ```
     - Пример монтирования в Linux:
       ```bash
-      sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo
+      sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112,lookupcache=none,actimeo=0 127.0.0.1:/ /tmp/demo
       ```
 
 2.  **Real FS (`bold-nfs`)**

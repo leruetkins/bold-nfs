@@ -50,7 +50,7 @@ You can compile and run it from the repo:
 
 2) Open another terminal
 3) `mkdir /tmp/demo`
-4) `sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo`
+4) `sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112,lookupcache=none,actimeo=0 127.0.0.1:/ /tmp/demo`
 5) `ls /tmp/demo/`, `cat /tmp/demo/home/user/file1`
 (have a look around in your mounted file system)
 6) Copy files from your local computer into the mounted file system and retrive it back
@@ -65,7 +65,7 @@ You can compile and run it from the repo:
 
 2) Open another terminal
 3) `mkdir /tmp/demo`
-4) `sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo`
+4) `sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112,lookupcache=none,actimeo=0 127.0.0.1:/ /tmp/demo`
 5) `ls /tmp/demo/`
 (have a look around in your mounted file system)
 6) Copy files from your local computer into the mounted file system and retrive it back

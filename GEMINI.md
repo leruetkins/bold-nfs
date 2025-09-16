@@ -38,7 +38,7 @@ This binary serves an in-memory file system based on a YAML configuration file.
 
     ```sh
     mkdir /tmp/demo
-    sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo
+    sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112,lookupcache=none,actimeo=0 127.0.0.1:/ /tmp/demo
     ```
 
 3.  **Unmount the file system:**
@@ -61,7 +61,7 @@ This binary shares a directory from your local file system.
 
     ```sh
     mkdir /tmp/demo
-    sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112 127.0.0.1:/ /tmp/demo
+    sudo mount.nfs4 -n -v -o fg,soft,sec=none,vers=4.0,port=11112,lookupcache=none,actimeo=0 127.0.0.1:/ /tmp/demo
     ```
 
 3.  **Unmount the file system:**
@@ -91,3 +91,9 @@ The project's tests are written in Python using `pytest`. To run the tests, you 
 *   The project follows standard Rust and Python coding conventions.
 *   The codebase is organized into a Rust workspace, promoting modularity and separation of concerns.
 *   Testing is a key part of the development process, with a dedicated test suite in Python.
+
+## Recent Changes Summary
+
+*   **UTF-8 Support:** Fixed a serialization issue that caused crashes when dealing with non-ASCII filenames. File and client identifiers in the protocol are now handled as `Vec<u8>` to correctly support UTF-8.
+*   **File Write Logic:** Corrected a bug in the `WRITE` operation that caused file content to be duplicated upon editing. The logic now uses a "read-modify-write" approach to ensure data integrity.
+*   **Documentation:** Updated `AI_PROJECT_GUIDE.md`, `README.md`, and `GEMINI.md` to reflect the latest changes, including updated mount commands for easier debugging.

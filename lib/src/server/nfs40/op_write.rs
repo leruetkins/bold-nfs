@@ -1,4 +1,4 @@
-use std::io::{Seek, SeekFrom, Write};
+use std::io::Write;
 
 use async_trait::async_trait;
 use tracing::{debug, error};
@@ -56,13 +56,31 @@ impl NfsOperation for Write4args {
                 .await;
         } else {
             // write to file
-            let mut file = filehandle.file.append_file().unwrap();
-            let _ = file.seek(SeekFrom::Start(self.offset as u64));
-            count = file.write(&self.data).unwrap() as u32;
+            // Read-modify-write approach
+            let mut contents = Vec::new();
+            if filehandle.file.exists().unwrap() {
+                let mut file = filehandle.file.open_file().unwrap();
+                use std::io::Read;
+                file.read_to_end(&mut contents).unwrap();
+            }
+
+            let offset = self.offset as usize;
+            let data_len = self.data.len();
+            let new_len = offset + data_len;
+
+            if new_len > contents.len() {
+                contents.resize(new_len, 0);
+            }
+
+            contents[offset..offset + data_len].copy_from_slice(&self.data);
+
+            let mut file = filehandle.file.create_file().unwrap();
+            file.write_all(&contents).unwrap();
+            
+            count = self.data.len() as u32;
             stable = StableHow4::FileSync4;
 
             if count > 0 {
-                file.flush().unwrap();
                 request.file_manager().touch_file(filehandle.id).await;
             }
         }

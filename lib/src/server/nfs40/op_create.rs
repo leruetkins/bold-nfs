@@ -49,7 +49,9 @@ impl NfsOperation for Create4args {
                 } else {
                     &filehandle.file
                 };
-                let new_dir = current_dir.join(self.objname.clone()).unwrap();
+                let new_dir = current_dir
+                    .join(std::str::from_utf8(&self.objname).unwrap())
+                    .unwrap();
                 let _ = new_dir.create_dir();
 
                 request.file_manager().touch_file(filehandle.id).await;

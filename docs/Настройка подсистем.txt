@@ -1,0 +1,119 @@
+
+
+
+Установка подсистемы
+
+Необходимые дистрибутивы:
+
+1. base-1.7.6.15-15.11.24_17.20.iso
+2. installation-1.7.6.15-15.11.24_17.20.iso
+3. ALDPro-2.4.1-1.7_x86-64.iso
+
+Проверяем номер версии ALSE
+
+cat /etc/astra/build_version
+
+Проверяем уровень защищённости
+
+sudo astra-modeswitch getname
+
+sudo astra-modeswitch set 2
+
+Настроим статику на интерфейсе
+
+sudo nano /etc/network/interfaces
+
+auto lo  
+iface lo inet loopback  
+auto eth0  
+iface eth0 inet static  
+address 192.168.0.241
+netmask 255.255.255.0  
+gateway 192.168.0.1
+
+Перезапустим службу сети и почистим старое соединение 
+
+sudo systemctl restart networking
+
+Отключаем NetworkManager
+
+sudo systemctl stop NetworkManager
+
+sudo systemctl disable NetworkManager
+
+sudo systemctl mask NetworkManager
+
+sudo systemctl stop NetworkManager && sudo systemctl disable NetworkManager && sudo systemctl mask NetworkManager
+
+
+Настроим разрешение имен
+
+sudo nano /etc/resolv.conf
+
+search ald.pro
+nameserver 192.168.0.211  
+nameserver 192.168.0.212
+
+Проверим подключение к репозиториям Astra Linux. 
+
+ping -c 4 dl.astralinux.ru
+
+Меняем имя хоста подсистемы
+
+sudo hostnamectl set-hostname mon.ald.pro
+
+Редактируем список репозиториев
+
+##Основной репозиторий:
+
+sudo nano /etc/apt/sources.list
+
+deb http://dl.astralinux.ru/astra/frozen/1.7_x86-64/1.7.6/uu/2/repository-main 1.7_x86-64 main non-free contrib
+
+deb http://dl.astralinux.ru/astra/frozen/1.7_x86-64/1.7.6/uu/2/repository-base 1.7_x86-64 main non-free contrib
+
+
+##Репозиторий ALD Pro:
+
+sudo nano /etc/apt/sources.list.d/aldpro.list
+
+deb https://dl.astralinux.ru/aldpro/frozen/01/2.4.1 1.7_x86-64 main base
+
+Выполним обновление
+
+sudo apt update  
+
+sudo apt list --upgradable  
+
+sudo apt dist-upgrade -y -o Dpkg::Options::=--force-confnew
+
+Установка пакетов ALD Pro клиента
+
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -q -y aldpro-client
+
+Проверяем содержимое файла /etc/resolv.conf
+
+nano /etc/resolv.conf
+
+Если файл `resolv.conf` по прежнему имеет ссылку на `77.88.8.8`, то необходимо заменить его содержимое на:
+
+nameserver 192.168.0.211  
+search ald.pro
+
+Вводим в подсистему в домен
+
+sudo /opt/rbta/aldpro/client/bin/aldpro-client-installer --domain ald.pro --account admin --password '12345678' --host mon --gui --force
+
+Перезагрузка сервера
+
+sudo reboot
+
+Продвижение подсистемы
+
+Для продвижения подсистемы необходимо через портал управления отправить задачу на установку подсистемы.  
+
+Выбираем необходимую машину
+
+Для Форсированной установки подсистемы используем команду
+
+aldpro-roles --iud --action install

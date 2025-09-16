@@ -36,7 +36,7 @@ impl NfsOperation for Readdir4args {
         let mut dircount_actual = 0;
         // get a list of filenames and filehandles
         for (i, entry) in dir.enumerate() {
-            let name = entry.filename();
+            let name = entry.filename().into_bytes();
             fnames.push(name.clone());
             // if the cookie value is progressed, we add only subsequent filehandles
             // https://datatracker.ietf.org/doc/html/rfc7530#section-16.24.4
@@ -70,13 +70,9 @@ impl NfsOperation for Readdir4args {
         }
 
         // get a seed of this directory, concat all files names
-        let seed: String = fnames
-            .iter()
-            .flat_map(|s| s.as_str().chars().collect::<Vec<_>>())
-            .collect();
+        let seed: Vec<u8> = fnames.iter().flatten().cloned().collect();
         // take only every nth char to create a cookie verifier
         let mut cookieverf = seed
-            .as_bytes()
             .iter()
             .step_by(seed.len() / 8 + 1)
             .copied()
@@ -120,7 +116,7 @@ impl NfsOperation for Readdir4args {
             };
 
             let entry = Entry4 {
-                name: fh.file.filename(),
+                name: fh.file.filename().into_bytes(),
                 cookie: cookie as u64,
                 attrs: Fattr4 {
                     attrmask: answer_attrs,
@@ -272,14 +268,14 @@ mod integration_tests {
                 assert_eq!(res.cookieverf.len(), 8);
                 let entries = res.reply.entries.unwrap();
                 assert_eq!(entries.cookie, 3);
-                if entries.name == "file1.txt" {
+                if entries.name == "file1.txt".as_bytes() {
                     assert_eq!(entries.attrs.attrmask.len(), 14);
                     assert_eq!(entries.attrs.attr_vals.len(), 14);
                     assert_eq!(
                         entries.attrs.attr_vals[0],
                         FileAttrValue::Type(NfsFtype4::Nf4reg)
                     );
-                } else if entries.name == "dir1" {
+                } else if entries.name == "dir1".as_bytes() {
                     assert_eq!(entries.attrs.attrmask.len(), 14);
                     assert_eq!(entries.attrs.attr_vals.len(), 14);
                     assert_eq!(
@@ -291,14 +287,14 @@ mod integration_tests {
                 }
                 let next = entries.nextentry.unwrap();
                 assert_eq!(next.cookie, 4);
-                if next.name == "file1.txt" {
+                if next.name == "file1.txt".as_bytes() {
                     assert_eq!(next.attrs.attrmask.len(), 14);
                     assert_eq!(next.attrs.attr_vals.len(), 14);
                     assert_eq!(
                         next.attrs.attr_vals[0],
                         FileAttrValue::Type(NfsFtype4::Nf4reg)
                     );
-                } else if next.name == "dir1" {
+                } else if next.name == "dir1".as_bytes() {
                     assert_eq!(next.attrs.attrmask.len(), 14);
                     assert_eq!(next.attrs.attr_vals.len(), 14);
                     assert_eq!(

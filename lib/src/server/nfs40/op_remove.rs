@@ -35,7 +35,10 @@ impl NfsOperation for Remove4args {
                 };
             }
             Some(filehandle) => {
-                let path = filehandle.file.join(self.target.clone()).unwrap();
+                let path = filehandle
+                    .file
+                    .join(std::str::from_utf8(&self.target).unwrap())
+                    .unwrap();
                 let res = request.file_manager().remove_file(path).await;
                 match res {
                     Ok(cinfo) => NfsOpResponse {

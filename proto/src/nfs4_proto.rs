@@ -137,7 +137,7 @@ type SecOid4 = Vec<u64>;
 type Seqid4 = u32;
 // type opaque  String<>;
 type Utf8strCis = String;
-type Utf8strCs = String;
+type Utf8strCs = Vec<u8>;
 type Utf8strMixed = String;
 type Component4 = Utf8strCs;
 type Linktext4 = Vec<u64>;
@@ -298,7 +298,8 @@ pub struct Nfsace4 {
     pub acetype: Acetype4,
     pub flag: Aceflag4,
     pub access_mask: Acemask4,
-    pub who: Utf8strMixed,
+    #[serde(with = "serde_bytes")]
+    pub who: Vec<u8>,
 }
 
 /*
@@ -453,7 +454,8 @@ pub struct Stateid4 {
 pub struct NfsClientId4 {
     #[serde(with = "serde_xdr::opaque_data::fixed_length")]
     pub verifier: [u8; NFS4_VERIFIER_SIZE],
-    pub id: String,
+    #[serde(with = "serde_bytes")]
+    pub id: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -553,7 +555,8 @@ pub enum Createtype4 {
 pub struct Create4args {
     /* CURRENT_FH: directory for creation */
     pub objtype: Createtype4,
-    pub objname: Component4,
+    #[serde(with = "serde_bytes")]
+    pub objname: Vec<u8>,
     pub createattrs: Fattr4,
 }
 
@@ -855,7 +858,8 @@ pub enum Locku4res {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Lookup4args {
     /* CURRENT_FH: directory */
-    pub objname: Component4,
+    #[serde(with = "serde_bytes")]
+    pub objname: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -969,7 +973,8 @@ pub enum OpenClaimType4 {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct OpenClaimDelegateCur4 {
     delegate_stateid: Stateid4,
-    file: Component4,
+    #[serde(with = "serde_bytes")]
+    file: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -981,7 +986,8 @@ pub enum OpenClaim4 {
     */
 
     /* CURRENT_FH: directory */
-    ClaimNull(Component4) = 0,
+    #[serde(with = "serde_bytes")]
+    ClaimNull(Vec<u8>) = 0,
     /*
     * Right to the file established by an
     * open previous to server reboot.  File
@@ -1007,7 +1013,8 @@ pub enum OpenClaim4 {
      * of the client.  File is specified by name.
      */
     /* CURRENT_FH: directory */
-    ClaimDelegatePrev(Component4) = 3,
+    #[serde(with = "serde_bytes")]
+    ClaimDelegatePrev(Vec<u8>) = 3,
 }
 
 /*
@@ -1206,7 +1213,8 @@ pub struct Readdir4args {
 pub struct Entry4 {
     // pub len: u32,
     pub cookie: NfsCookie4,
-    pub name: Component4,
+    #[serde(with = "serde_bytes")]
+    pub name: Vec<u8>,
     pub attrs: Fattr4,
     pub nextentry: Option<Box<Entry4>>,
 }
@@ -1244,7 +1252,8 @@ pub enum ReadLink4res {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Remove4args {
     /* CURRENT_FH: directory */
-    pub target: Component4,
+    #[serde(with = "serde_bytes")]
+    pub target: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1256,9 +1265,11 @@ pub struct Remove4res {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Rename4args {
     /* SAVED_FH: source directory */
-    oldname: Component4,
+    #[serde(with = "serde_bytes")]
+    oldname: Vec<u8>,
     /* CURRENT_FH: target directory */
-    newname: Component4,
+    #[serde(with = "serde_bytes")]
+    newname: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1298,7 +1309,8 @@ pub struct SaveFh4res {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SecInfo4args {
     /* CURRENT_FH: directory */
-    name: Component4,
+    #[serde(with = "serde_bytes")]
+    name: Vec<u8>,
 }
 
 /*

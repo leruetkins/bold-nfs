@@ -32,10 +32,10 @@ impl NfsOperation for Lookup4args {
 
         let mut path = filehandle.path.clone();
         if path == "/" {
-            path.push_str(self.objname.as_str());
+            path.push_str(std::str::from_utf8(&self.objname).unwrap());
         } else {
             path.push('/');
-            path.push_str(self.objname.as_str());
+            path.push_str(std::str::from_utf8(&self.objname).unwrap());
         }
 
         debug!("lookup {:?}", path);
@@ -93,7 +93,7 @@ mod integration_tests {
         let putfh_request = putfh_args.execute(request).await;
 
         let args = Lookup4args {
-            objname: "file1.txt".to_string(),
+            objname: "file1.txt".as_bytes().to_vec(),
         };
         let lookup1_response = args.execute(putfh_request.request).await;
         assert_eq!(lookup1_response.status, NfsStat4::Nfs4Ok);
@@ -121,7 +121,7 @@ mod integration_tests {
         let putfh1_request = putfh_args.execute(lookup1_response.request).await;
 
         let args = Lookup4args {
-            objname: "doesnotexist".to_string(),
+            objname: "doesnotexist".as_bytes().to_vec(),
         };
         let lookup2_response = args.execute(putfh1_request.request).await;
         assert_eq!(lookup2_response.status, NfsStat4::Nfs4errNoent);

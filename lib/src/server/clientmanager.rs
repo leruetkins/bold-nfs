@@ -6,6 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
+use serde_derive::{Deserialize, Serialize};
 
 use bold_proto::nfs4_proto::NfsStat4;
 
@@ -19,7 +20,7 @@ pub struct ClientManager {
     filehandles: HashMap<String, Vec<u8>>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct ClientCallback {
     pub program: u32,
     pub rnetid: String,
@@ -28,7 +29,7 @@ pub struct ClientCallback {
 }
 
 /// Please read: [RFC 7530, Section 16.33.5](https://datatracker.ietf.org/doc/html/rfc7530#section-16.33.5)
-#[derive(MultiIndexMap, Debug, Clone)]
+#[derive(MultiIndexMap, Debug, Clone, Serialize, Deserialize)]
 #[multi_index_derive(Debug, Clone)]
 pub struct ClientEntry {
     /// Please read: [RFC 7530, Section 3.3.3](https://datatracker.ietf.org/doc/html/rfc7530#section-3.3.3)
@@ -37,7 +38,7 @@ pub struct ClientEntry {
     #[multi_index(hashed_non_unique)]
     pub verifier: [u8; 8],
     #[multi_index(hashed_non_unique)]
-    pub id: String,
+    pub id: Vec<u8>,
     #[multi_index(hashed_non_unique)]
     pub clientid: u64,
     pub callback: ClientCallback,
@@ -48,7 +49,7 @@ pub struct ClientEntry {
 
 struct UpsertClientRequest {
     pub verifier: [u8; 8],
-    pub id: String,
+    pub id: Vec<u8>,
     pub callback: ClientCallback,
     pub principal: Option<String>,
     pub respond_to: oneshot::Sender<Result<ClientEntry, ClientManagerError>>,
@@ -130,7 +131,7 @@ impl ClientManager {
     fn upsert_client(
         &mut self,
         verifier: [u8; 8],
-        id: String,
+        id: Vec<u8>,
         callback: ClientCallback,
         principal: Option<String>,
     ) -> Result<ClientEntry, ClientManagerError> {
@@ -166,7 +167,7 @@ impl ClientManager {
     fn add_client_record(
         &mut self,
         verifier: [u8; 8],
-        id: String,
+        id: Vec<u8>,
         callback: ClientCallback,
         principal: Option<String>,
         client_id: Option<u64>,
@@ -342,7 +343,7 @@ impl ClientManagerHandle {
     pub async fn upsert_client(
         &self,
         verifier: [u8; 8],
-        id: String,
+        id: Vec<u8>,
         callback: ClientCallback,
         principal: Option<String>,
     ) -> Result<ClientEntry, ClientManagerError> {
@@ -438,7 +439,7 @@ mod tests {
         let mut manager = super::ClientManager::new(receiver);
 
         let verifier = [0; 8];
-        let id = "test".to_string();
+        let id = "test".as_bytes().to_vec();
         let callback = super::ClientCallback {
             program: 0,
             rnetid: "tcp".to_string(),
@@ -489,7 +490,7 @@ mod tests {
         };
         let err_client = manager.upsert_client(
             verifier,
-            id,
+            id.clone(),
             other_callback.clone(),
             Some("LINUX".to_string()),
         );
@@ -521,7 +522,7 @@ mod tests {
         let mut manager = super::ClientManager::new(receiver);
 
         let verifier = [0; 8];
-        let id = "test".to_string();
+        let id = "test".as_bytes().to_vec();
         let callback = super::ClientCallback {
             program: 0,
             rnetid: "tcp".to_string(),
@@ -551,7 +552,7 @@ mod tests {
         let mut manager = super::ClientManager::new(receiver);
 
         let verifier = [0; 8];
-        let id = "test".to_string();
+        let id = "test".as_bytes().to_vec();
         let callback = super::ClientCallback {
             program: 0,
             rnetid: "tcp".to_string(),

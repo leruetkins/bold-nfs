@@ -16,7 +16,7 @@ use bold_proto::nfs4_proto::{
 
 async fn open_for_reading<'a>(
     args: &Open4args,
-    file: &String,
+    file: &Vec<u8>,
     mut request: NfsRequest<'a>,
 ) -> NfsOpResponse<'a> {
     let current_filehandle = request.current_filehandle().unwrap();
@@ -24,9 +24,9 @@ async fn open_for_reading<'a>(
 
     let fh_path = {
         if path == "/" {
-            format!("{}{}", path, file)
+            format!("{}{}", path, std::str::from_utf8(file).unwrap())
         } else {
-            format!("{}/{}", path, file)
+            format!("{}/{}", path, std::str::from_utf8(file).unwrap())
         }
     };
 
@@ -96,7 +96,7 @@ async fn open_for_reading<'a>(
 async fn open_for_writing<'a>(
     args: &Open4args,
     filehandle: &Filehandle,
-    file: &String,
+    file: &Vec<u8>,
     how: &CreateHow4,
     mut request: NfsRequest<'a>,
 ) -> NfsOpResponse<'a> {
@@ -104,15 +104,15 @@ async fn open_for_writing<'a>(
 
     let fh_path = {
         if path == "/" {
-            format!("{}{}", path, file)
+            format!("{}{}", path, std::str::from_utf8(file).unwrap())
         } else {
-            format!("{}/{}", path, file)
+            format!("{}/{}", path, std::str::from_utf8(file).unwrap())
         }
     };
 
     debug!("open_for_writing {:?}", fh_path);
 
-    let newfile_op = filehandle.file.join(file);
+    let newfile_op = filehandle.file.join(std::str::from_utf8(file).unwrap());
 
     let filehandle = match how {
         CreateHow4::UNCHECKED4(_fattr) => {

@@ -54,7 +54,7 @@
 **Структура воркспейса:**
 - **`proto`**: Крейт для работы с протоколом. Он отвечает за (де)сериализацию XDR-сообщений.
   - [`proto/src/rpc_proto.rs`](proto/src/rpc_proto.rs): Определения для общего RPC-протокола (на основе RFC 1057).
-  - [`proto/src/nfs4_proto.rs`](proto/src/nfs4_proto.rs): Определения для протокола NFSv4.0 (на основе RFC 7530).
+  - [`proto/src/nfs4_proto.rs`](proto/src/nfs4_proto.rs): Определения для протокола NFSv4.0 (на основе RFC 7530). Для поддержки не-ASCII символов, имена файлов и другие потенциально не-ASCII строки представлены как `Vec<u8>`, а не `String`.
   - [`proto/src/lib.rs`](proto/src/lib.rs): Реализация `XDRProtoCodec` для `tokio-util`, который преобразует байтовый поток TCP в последовательность RPC-сообщений.
 - **`lib`**: Основная библиотека сервера.
   - [`lib/src/lib.rs`](lib/src/lib.rs): Содержит `NFSServer` и `ServerBuilder`. Здесь находится главный цикл обработки TCP-соединений.
@@ -139,7 +139,7 @@
 
 - **`ClientManager`**:
   - `db: MultiIndexClientEntryMap`: Хранит записи о клиентах (`ClientEntry`). Позволяет делать быстрые выборки по `principal`, `verifier`, `id`, `clientid`, `setclientid_confirm`.
-    - [`lib/src/server/clientmanager.rs:31`](lib/src/server/clientmanager.rs:31)
+    - [`lib/src/server/clientmanager.rs:31`](lib/src/server/clientmanager.rs:31). Идентификатор клиента (`id`) хранится в виде `Vec<u8>` для поддержки UTF-8.
 - **`FileManager`**:
   - `fhdb: FilehandleDb`: Индекс для `Filehandle` по `id` (NfsFh4) и `path` (String).
     - [`lib/src/server/filemanager/filehandle.rs`](lib/src/server/filemanager/filehandle.rs)
@@ -264,12 +264,14 @@
 
 ## 11. Changelog Summary
 
-Формальный CHANGELOG или ADR (Architecture Decision Records) отсутствуют.
-Из [`README.md`](README.md) можно сделать вывод о состоянии проекта:
-- **NFSv4.0:** В процессе разработки (WIP).
-- **NFSv4.1, NFSv4.2:** Реализация не начата.
+### 2025-09-16: Исправление поддержки UTF-8
 
-Это говорит о том, что проект находится на ранней стадии разработки.
+- **Проблема:** Сервер падал с ошибкой сериализации `StringIsNotAscii` при попытке отобразить файлы с не-ASCII (например, русскими) именами.
+- **Решение:**
+  - В `proto/src/nfs4_proto.rs` типы данных, представляющие имена файлов и идентификаторы клиентов (например, `Component4`, поле `id` в `NfsClientId4`), были изменены с `String` на `Vec<u8>`. Это позволяет передавать строки как необработанные байты в кодировке UTF-8, избегая проблем при XDR-сериализации, которая по умолчанию ожидает ASCII.
+  - В обработчиках операций (`op_*.rs`), где используются эти поля, была добавлена логика для конвертации между `Vec<u8>` и строками (`std::str::from_utf8`).
+  - В `ClientManager` поле `id` у `ClientEntry` также было изменено на `Vec<u8>` для консистентности.
+- **Результат:** Сервер теперь корректно обрабатывает и отображает файлы с именами в кодировке UTF-8.
 
 
 ---

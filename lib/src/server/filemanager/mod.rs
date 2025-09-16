@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use bold_proto::nfs4_proto::{
-    Attrlist4, FileAttr, FileAttrValue, NfsFh4, NfsLease4, NfsStat4, ACL4_SUPPORT_ALLOW_ACL,
-    FH4_VOLATILE_ANY, MODE4_RGRP, MODE4_ROTH, MODE4_RUSR,
+    Attrlist4, ChangeInfo4, FileAttr, FileAttrValue, NfsFh4, NfsLease4, NfsStat4,
+    ACL4_SUPPORT_ALLOW_ACL, FH4_VOLATILE_ANY, MODE4_RGRP, MODE4_ROTH, MODE4_RUSR,
 };
 
 mod filehandle;
@@ -114,8 +114,9 @@ impl FileManager {
                     .unwrap();
             }
             FileManagerMessage::CreateFile(req) => {
-                let fh = self.create_file(&req.path);
-                if let Some(mut fh) = fh {
+                let result = self.create_file(&req.path);
+                if let Some((fh, change_info)) = result {
+                    let mut fh = fh;
                     let stateid = self.get_new_lockingstate_id();
                     let lock = LockingState::new_shared_reservation(
                         fh.id.clone(),
@@ -128,9 +129,13 @@ impl FileManager {
                     // add this new locking state to the db
                     self.lockdb.insert(lock.clone());
                     fh.locks = vec![lock];
-                    req.respond_to.send(Some(fh)).unwrap();
+                    req.respond_to.send(Ok((fh, change_info))).unwrap();
                 } else {
-                    req.respond_to.send(None).unwrap();
+                    req.respond_to
+                        .send(Err(FileManagerError {
+                            nfs_error: NfsStat4::Nfs4errIo,
+                        }))
+                        .unwrap();
                 }
             }
             FileManagerMessage::LockFile(req) => {
@@ -206,9 +211,19 @@ impl FileManager {
                 }
 
                 let parent_filehandle = self.get_filehandle_by_path(&parent_path).unwrap();
+                let before = parent_filehandle.attr_change;
                 // TODO: check locks
                 self.touch_filehandle(parent_filehandle);
-                req.respond_to.send(()).unwrap()
+                let parent_filehandle = self.get_filehandle_by_path(&parent_path).unwrap();
+                let after = parent_filehandle.attr_change;
+
+                let change_info = ChangeInfo4 {
+                    atomic: true,
+                    before,
+                    after,
+                };
+
+                req.respond_to.send(Ok(change_info)).unwrap()
             }
             FileManagerMessage::TouchFile(req) => {
                 let filehandle = self.get_filehandle_by_id(&req.id);
@@ -257,7 +272,7 @@ impl FileManager {
         self.fhdb.insert(filehandle);
     }
 
-    fn create_file(&mut self, request_file: &VfsPath) -> Option<Filehandle> {
+    fn create_file(&mut self, request_file: &VfsPath) -> Option<(Filehandle, ChangeInfo4)> {
         let newfile = match request_file.create_file() {
             Ok(_) => {
                 debug!("File created successfully");
@@ -278,9 +293,17 @@ impl FileManager {
         }
         // TODO: check locks
         let parent_filehandle = self.get_filehandle_by_path(&path).unwrap();
+        let before = parent_filehandle.attr_change;
         self.touch_filehandle(parent_filehandle);
+        let parent_filehandle = self.get_filehandle_by_path(&path).unwrap();
+        let after = parent_filehandle.attr_change;
+        let change_info = ChangeInfo4 {
+            atomic: true,
+            before,
+            after,
+        };
 
-        Some(fh)
+        Some((fh, change_info))
     }
 
     fn get_new_lockingstate_id(&mut self) -> [u8; 12] {

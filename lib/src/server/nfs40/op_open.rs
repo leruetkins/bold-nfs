@@ -173,9 +173,10 @@ async fn open_for_writing<'a>(
         }
     };
 
-    request.set_filehandle(filehandle.clone());
+    let (lock_filehandle, _) = filehandle;
+    request.set_filehandle(lock_filehandle.clone());
     // we expect this filehandle to have one lock (for the shared reservation)
-    let lock = &filehandle.locks[0];
+    let lock = &lock_filehandle.locks[0];
 
     NfsOpResponse {
         request,

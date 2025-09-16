@@ -4,8 +4,7 @@ use tracing::{debug, error};
 use crate::server::{operation::NfsOperation, request::NfsRequest, response::NfsOpResponse};
 
 use bold_proto::nfs4_proto::{
-    Attrlist4, ChangeInfo4, Create4args, Create4res, Create4resok, Createtype4, FileAttr,
-    NfsResOp4, NfsStat4,
+    Attrlist4, Create4args, Create4res, Create4resok, Createtype4, FileAttr, NfsResOp4, NfsStat4,
 };
 
 #[async_trait]
@@ -52,14 +51,20 @@ impl NfsOperation for Create4args {
                 let new_dir = current_dir.join(self.objname.clone()).unwrap();
                 let _ = new_dir.create_dir();
 
-                request.file_manager().touch_file(filehandle.id).await;
-
                 let resp = request
                     .file_manager()
-                    .get_filehandle_for_path(new_dir.as_str().to_string())
+                    .create_file(
+                        new_dir,
+                        0, // TODO clientid from request
+                        vec![],
+                        0,
+                        0,
+                        None,
+                    )
                     .await;
-                let filehandle = match resp {
-                    Ok(filehandle) => filehandle,
+
+                let (filehandle, change_info) = match resp {
+                    Ok(result) => result,
                     Err(e) => {
                         debug!("FileManagerError {:?}", e);
                         request.unset_filehandle();
@@ -72,14 +77,7 @@ impl NfsOperation for Create4args {
                 };
                 request.set_filehandle(filehandle.clone());
 
-                (
-                    ChangeInfo4 {
-                        atomic: true,
-                        before: filehandle.attr_change,
-                        after: filehandle.attr_change,
-                    },
-                    Attrlist4::<FileAttr>::new(None),
-                )
+                (change_info, Attrlist4::<FileAttr>::new(None))
             }
             _ => {
                 // https://datatracker.ietf.org/doc/html/rfc7530#section-16.4.2

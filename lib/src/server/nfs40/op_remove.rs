@@ -38,19 +38,19 @@ impl NfsOperation for Remove4args {
                 let path = filehandle.file.join(self.target.clone()).unwrap();
                 let res = request.file_manager().remove_file(path).await;
                 match res {
-                    Ok(_) => NfsOpResponse {
+                    Ok(cinfo) => NfsOpResponse {
                         request,
                         result: Some(NfsResOp4::Opremove(Remove4res {
                             status: NfsStat4::Nfs4Ok,
-                            cinfo: ChangeInfo4 {
-                                atomic: false,
-                                before: 0,
-                                after: 0,
-                            },
+                            cinfo,
                         })),
-                        status: NfsStat4::Nfs4errStale,
+                        status: NfsStat4::Nfs4Ok,
                     },
-                    Err(_) => todo!(),
+                    Err(e) => NfsOpResponse {
+                        request,
+                        result: None,
+                        status: e.nfs_error,
+                    },
                 }
             }
         }

@@ -1,3 +1,4 @@
+use bold_proto::nfs4_proto::ChangeInfo4;
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use vfs::VfsPath;
@@ -73,12 +74,12 @@ pub struct CreateFileRequest {
     pub share_access: u32,
     pub share_deny: u32,
     pub verifier: Option<[u8; 8]>,
-    pub respond_to: oneshot::Sender<Option<Filehandle>>,
+    pub respond_to: oneshot::Sender<Result<(Filehandle, ChangeInfo4), FileManagerError>>,
 }
 
 pub struct RemoveFileRequest {
     pub path: VfsPath,
-    pub respond_to: oneshot::Sender<()>,
+    pub respond_to: oneshot::Sender<Result<ChangeInfo4, FileManagerError>>,
 }
 
 pub struct TouchFileRequest {
@@ -228,7 +229,7 @@ impl FileManagerHandle {
         access: u32,
         deny: u32,
         verifier: Option<[u8; 8]>,
-    ) -> Result<Filehandle, FileManagerError> {
+    ) -> Result<(Filehandle, ChangeInfo4), FileManagerError> {
         let (tx, rx) = oneshot::channel();
         let req = CreateFileRequest {
             path,
@@ -243,23 +244,10 @@ impl FileManagerHandle {
             .send(FileManagerMessage::CreateFile(req))
             .await
             .unwrap();
-        match rx.await {
-            Ok(fh) => {
-                if let Some(fh) = fh {
-                    return Ok(fh);
-                }
-                Err(FileManagerError {
-                    // TODO: check if this is the correct error
-                    nfs_error: NfsStat4::Nfs4errBadhandle,
-                })
-            }
-            Err(_) => Err(FileManagerError {
-                nfs_error: NfsStat4::Nfs4errServerfault,
-            }),
-        }
+        rx.await.unwrap()
     }
 
-    pub async fn remove_file(&self, path: VfsPath) -> Result<(), FileManagerError> {
+    pub async fn remove_file(&self, path: VfsPath) -> Result<ChangeInfo4, FileManagerError> {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(FileManagerMessage::RemoveFile(RemoveFileRequest {
@@ -268,12 +256,7 @@ impl FileManagerHandle {
             }))
             .await
             .unwrap();
-        match rx.await {
-            Ok(_) => Ok(()),
-            Err(_) => Err(FileManagerError {
-                nfs_error: NfsStat4::Nfs4errServerfault,
-            }),
-        }
+        rx.await.unwrap()
     }
 
     pub async fn touch_file(&self, id: NfsFh4) {
